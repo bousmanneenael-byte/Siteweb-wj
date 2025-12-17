@@ -4,214 +4,217 @@
 <meta charset="UTF-8">
 <title>Lord.com</title>
 <style>
-body {
-  background:#111;
-  color:#fff;
-  font-family:Arial;
-  margin:0;
-}
-button {
-  background:#fff;
-  color:#000;
-  border:none;
-  padding:6px 10px;
-  margin:2px;
-  cursor:pointer;
-}
-button:disabled {
-  opacity:0.4;
-  cursor:not-allowed;
-}
-.country {
-  border:1px solid #444;
-  padding:10px;
-  margin:10px;
-}
-.hidden { display:none; }
-.money {
-  font-size:20px;
-  padding:10px;
-  background:#000;
-}
+body{margin:0;font-family:Arial;background:#121212;color:white}
+button{background:white;color:black;border:none;padding:6px 10px;margin:3px;cursor:pointer}
+button:disabled{opacity:.4}
+.panel{padding:15px}
+.country{border:1px solid #555;padding:10px;margin:10px;border-radius:6px}
+.moneyBar{background:black;padding:10px;position:sticky;top:0}
+.hidden{display:none}
+input,select{padding:5px}
 </style>
 </head>
 <body>
 
-<!-- MENU D'ENTRÉE -->
-<div id="menu">
-  <h1>Lord.com</h1>
-  <input id="pseudo" placeholder="Ton pseudo">
-  <br><br>
-  <button onclick="goCountrySelect()">Confirmer</button>
+<!-- MENU PRINCIPAL -->
+<div id="menu" class="panel">
+<h1>Lord.com</h1>
+<input id="pseudo" placeholder="Pseudo">
+<br><br>
+<button onclick="openCountryMenu()">Jouer</button>
 </div>
 
-<!-- CHOIX PAYS -->
-<div id="selectCountry" class="hidden">
-  <h2>Choisis ton pays</h2>
-  <select id="startCountry"></select><br><br>
-  <button onclick="startGame()">Jouer</button>
+<!-- MENU CHOIX PAYS -->
+<div id="countryMenu" class="panel hidden">
+<h2>Choisis ton pays de départ</h2>
+<select id="countrySelect"></select>
+<br><br>
+<button onclick="startGame()">Confirmer</button>
 </div>
 
-<div class="money hidden" id="moneyBox">
-💰 Argent : <span id="money"></span> |
+<!-- BARRE ARGENT -->
+<div id="moneyBar" class="moneyBar hidden">
+💰 Argent : <span id="money">0</span> |
 💸 /sec : <span id="moneySec">0</span>
+<br>
+⏳ Changement des prix : <span id="timer">30</span>s
 </div>
 
-<div id="countries" class="hidden"></div>
+<!-- JEU -->
+<div id="game" class="panel hidden"></div>
 
 <script>
+/* ===== VARIABLES ===== */
 let money = 100000000000;
 let moneyPerSec = 0;
-let countryPrice = 1000;
 let timer = 30;
+let baseCountryPrice = 1000;
 
+/* ===== PAYS ===== */
 const countries = {
- "Égypte": { unlocked:false, type:"pharaon" },
- "France": { unlocked:false, type:"president" },
- "USA": { unlocked:false, type:"president" },
- "Russie": { unlocked:false, type:"president" },
- "Belgique": { unlocked:false, type:"roi" }
+ "Égypte":"pharaon",
+ "France":"president",
+ "Belgique":"roi",
+ "USA":"president",
+ "Russie":"president"
 };
 
-const data = {};
-for (let c in countries) {
- data[c] = {
+const state = {};
+for(let c in countries){
+ state[c]={
+  unlocked:false,
   people:0,
   leader:0,
   pharaon:0,
-  chats:0,
-  dieux:0,
-  prices: {
-    people: rand(10,75),
-    leader: rand(1000,10000),
-    pharaon: rand(1000,10000),
-    chat: rand(10000,100000),
-    dieu: rand(100000,1000000)
+  chat:0,
+  dieu:0,
+  price:{
+   people:r(10,75),
+   leader:r(1000,10000),
+   pharaon:r(1000,10000),
+   chat:r(10000,100000),
+   dieu:r(100000,1000000)
   }
  };
 }
 
-function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+/* ===== UTILS ===== */
+function r(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+function fmt(n){
+ if(n>=1e9)return (n/1e9).toFixed(1)+"B";
+ if(n>=1e6)return (n/1e6).toFixed(1)+"M";
+ if(n>=1e3)return (n/1e3).toFixed(1)+"k";
+ return n;
+}
 
-function goCountrySelect(){
- document.getElementById("menu").classList.add("hidden");
- document.getElementById("selectCountry").classList.remove("hidden");
- const sel=document.getElementById("startCountry");
+/* ===== MENUS ===== */
+function openCountryMenu(){
+ menu.classList.add("hidden");
+ countryMenu.classList.remove("hidden");
+ countrySelect.innerHTML="";
  for(let c in countries){
-  sel.innerHTML+=`<option>${c}</option>`;
+  countrySelect.innerHTML+=`<option>${c}</option>`;
  }
 }
 
 function startGame(){
- const c=document.getElementById("startCountry").value;
- countries[c].unlocked=true;
- document.getElementById("selectCountry").classList.add("hidden");
- document.getElementById("countries").classList.remove("hidden");
- document.getElementById("moneyBox").classList.remove("hidden");
+ state[countrySelect.value].unlocked=true;
+ countryMenu.classList.add("hidden");
+ game.classList.remove("hidden");
+ moneyBar.classList.remove("hidden");
  update();
+ save();
 }
 
+/* ===== AFFICHAGE ===== */
 function update(){
- document.getElementById("money").textContent = format(money);
- document.getElementById("moneySec").textContent = moneyPerSec;
- const cont=document.getElementById("countries");
- cont.innerHTML="";
+ document.getElementById("money").textContent=fmt(money);
+ document.getElementById("moneySec").textContent=moneyPerSec;
+ game.innerHTML="";
  moneyPerSec=0;
 
- for(let c in countries){
-  const d=data[c];
-  const unlocked=countries[c].unlocked;
-  let html=`<div class="country"><h2>${c} ${unlocked?"":"🔒"}</h2>`;
+ for(let c in state){
+  const s=state[c];
+  let html=`<div class="country"><h2>${c} ${s.unlocked?"":"🔒"}</h2>`;
 
-  if(!unlocked){
-   html+=`<button onclick="buyCountry('${c}')">Acheter pays (${countryPrice})</button>`;
-   html+=`</div>`;
-   cont.innerHTML+=html;
+  if(!s.unlocked){
+   html+=`<button onclick="buyCountry('${c}')">
+   Acheter (${fmt(baseCountryPrice)})
+   </button></div>`;
+   game.innerHTML+=html;
    continue;
   }
 
-  html+=`👤 Personnes : ${d.people}
+  html+=`
+  👤 Population : ${s.people} (${fmt(s.price.people)})
   <button onclick="buy('${c}','people')">+</button>
-  <button onclick="sell('${c}','people')">-</button><br>`;
+  <button onclick="sell('${c}','people')">-</button><br>
+  `;
 
-  if(countries[c].type==="pharaon"){
-   html+=`🐫 Pharaon : ${d.pharaon}
+  if(countries[c]==="pharaon"){
+   html+=`
+   🐪 Pharaon : ${s.pharaon} (${fmt(s.price.pharaon)})
    <button onclick="buy('${c}','pharaon')">+</button>
    <button onclick="sell('${c}','pharaon')">-</button><br>
-   🐱 Chats : ${d.chats}/2
+
+   🐱 Chats : ${s.chat}/2 (${fmt(s.price.chat)})
    <button onclick="buy('${c}','chat')">+</button>
    <button onclick="sell('${c}','chat')">-</button><br>
-   ⚡ Dieux : ${d.dieux}
+
+   ⚡ Dieux : ${s.dieu} (${fmt(s.price.dieu)})
    <button onclick="buy('${c}','dieu')">+</button>
-   <button onclick="sell('${c}','dieu')">-</button><br>`;
-  } else {
-   html+=`👑 Dirigeant : ${d.leader}
+   <button onclick="sell('${c}','dieu')">-</button><br>
+   `;
+  }else{
+   html+=`
+   👑 Dirigeant : ${s.leader} (${fmt(s.price.leader)})
    <button onclick="buy('${c}','leader')">+</button>
-   <button onclick="sell('${c}','leader')">-</button><br>`;
+   <button onclick="sell('${c}','leader')">-</button><br>
+   `;
   }
 
-  html+=`</div>`;
-  cont.innerHTML+=html;
+  html+="</div>";
+  game.innerHTML+=html;
 
-  moneyPerSec += d.people*0 + d.leader*1 + d.pharaon*1 + d.dieux*5;
+  moneyPerSec+=s.leader+s.pharaon+s.dieu*5;
  }
 }
 
+/* ===== ACHATS ===== */
 function buyCountry(c){
- if(money<countryPrice) return alert("Pas assez d'argent");
- money-=countryPrice;
- countries[c].unlocked=true;
- countryPrice=Math.floor(countryPrice*1.15);
- update();
+ if(money<baseCountryPrice)return alert("Pas assez d'argent");
+ money-=baseCountryPrice;
+ state[c].unlocked=true;
+ baseCountryPrice=Math.floor(baseCountryPrice*1.15);
+ save();update();
 }
 
 function buy(c,t){
- const p=data[c].prices[t];
- if(money<p) return alert("Pas assez d'argent");
- if(t==="chat" && data[c].chats>=2) return;
- if(t==="dieu" && data[c].chats<data[c].dieux+1)
-   return alert("Veuillez d'abord acheter un chat");
+ const s=state[c],p=s.price[t];
+ if(money<p)return;
+ if(t==="chat" && s.chat>=2)return;
+ if(t==="dieu" && s.chat<=s.dieu)return;
 
  money-=p;
- data[c][t==="leader"?"leader":t+"s"]++;
- update();
+ s[t]++;
+ save();update();
 }
 
 function sell(c,t){
- const p=data[c].prices[t];
- const key=t==="leader"?"leader":t+"s";
- if(data[c][key]<=0) return;
+ const s=state[c],p=s.price[t];
+ if(s[t]<=0)return;
  money+=p;
- data[c][key]--;
- if(t==="chat" && data[c].dieux>data[c].chats) data[c].dieux--;
- update();
+ s[t]--;
+ if(t==="chat" && s.dieu>s.chat)s.dieu=s.chat;
+ save();update();
 }
 
-function format(n){
- if(n>=1e9) return (n/1e9).toFixed(1)+"B";
- if(n>=1e6) return (n/1e6).toFixed(1)+"M";
- if(n>=1e3) return (n/1e3).toFixed(1)+"k";
- return n;
-}
-
+/* ===== CHRONO ===== */
 setInterval(()=>{
- for(let c in data){
-  for(let p in data[c].prices){
-   data[c].prices[p]=rand(
-    p==="people"?10:p==="chat"?10000:1000,
-    p==="people"?75:p==="chat"?100000:1000000
-   );
+ timer--;
+ if(timer<=0){
+  for(let c in state){
+   const p=state[c].price;
+   p.people=r(10,75);
+   p.leader=r(1000,10000);
+   p.pharaon=r(1000,10000);
+   p.chat=r(10000,100000);
+   p.dieu=r(100000,1000000);
   }
+  timer=30;
  }
- update();
-},30000);
-
-setInterval(()=>{
- money+=moneyPerSec;
- update();
+ document.getElementById("timer").textContent=timer;
 },1000);
 
-update();
+/* ===== ARGENT PASSIF ===== */
+setInterval(()=>{money+=moneyPerSec;update()},1000);
+
+/* ===== SAVE ===== */
+function save(){
+ localStorage.setItem("lord_save",JSON.stringify({
+  money,baseCountryPrice,state,timer
+ }));
+}
 </script>
 </body>
 </html>
