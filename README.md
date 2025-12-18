@@ -2,284 +2,275 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Lord.com</title>
+<title>Lord.com - Multi-pays</title>
 <style>
-html,body{
-  margin:0;
-  height:100%;
-  font-family:Arial;
-  background:#111;
-  color:white;
-}
-.hidden{display:none}
-button{
-  padding:6px 10px;
-  margin:3px;
-  cursor:pointer;
-}
-.panel{
-  padding:20px;
-  height:100%;
-  box-sizing:border-box;
-}
-#menu{
-  background:linear-gradient(blue,red);
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-}
-#countrySelect{
-  background:linear-gradient(red,blue);
-}
-.country{
-  border:1px solid white;
-  padding:10px;
-  margin:8px;
-}
-.locked{opacity:0.4}
-.countryPanel{
-  border:1px solid #888;
-  margin:10px;
-  padding:10px;
-}
+body{font-family:Arial;background:#111;color:white;padding:20px;}
+button{padding:6px 10px;margin:4px;cursor:pointer;}
+.hidden{display:none;}
+.panel{border:1px solid #555;padding:10px;margin-top:10px;}
+.countryBox{border:2px solid #777;padding:10px;margin:10px 0;position:relative;}
+.countryBox.locked{opacity:0.45;}
+.buyCountry{background:white;color:black;font-weight:bold;border:2px solid black;}
+.error{color:#ff5555;}
+input{padding:5px;margin:5px;width:200px;}
 </style>
 </head>
-
 <body>
+<h1>🌍 Lord.com - Multi-pays</h1>
+<div>
+💰 Argent : <span id="money"></span> |
+⏱️ Changement prix dans : <span id="timer"></span>s |
+💸 Total / sec : <span id="totalPS"></span>
+</div>
+<hr>
 
-<div id="menu" class="panel">
-  <h1>Lord.com</h1>
-  <input id="pseudo" placeholder="Pseudo">
-  <button onclick="confirmPseudo()">Confirmer</button>
-  <button onclick="start()">Jouer</button>
+<div id="startMenu">
+<h2>Choisis ton pays de départ</h2>
+<div id="startButtons"></div>
 </div>
 
-<div id="countrySelect" class="panel hidden">
-  <h2>Choisis ton pays de départ</h2>
-  <div id="countryList"></div>
-</div>
-
-<div id="game" class="panel hidden">
-  <h2 id="playerName"></h2>
-  <h3>💰 Argent : <span id="money"></span> (+<span id="moneyps"></span>/s)</h3>
-  <p>⏱️ Changement de prix dans : <span id="timer">30</span>s</p>
-  <div id="countries"></div>
-</div>
+<input type="text" id="searchInput" placeholder="Rechercher un pays..." onkeyup="searchCountry()">
+<div id="countriesList"></div>
 
 <script>
-/* ===== DONNÉES ===== */
-let money = 100000000000;
-let pseudo = "";
-let timer = 30;
+let money=20;  // Argent de départ modifié
+let timer=30;
+let countryData={}, unlocked={}, prices={}, population={}, persons={}, special={}, leaders={};
 
-const countriesData = {
-  Egypte:{type:"pharaon"},
-  USA:{type:"president",special:"Nathan"},
-  Russie:{type:"president",special:"Ethanael"},
-  Belgique:{type:"roi",special:"Enaël"},
-  Congo:{type:"president",special:"Nohlan"}
+// 50 pays
+let countryNames = ["Égypte","Russie","Belgique","USA","Congo","France","Allemagne","Italie","Espagne","Portugal",
+"Norvège","Suède","Finlande","Danemark","Islande","Japon","Chine","Inde","Brésil","Argentine",
+"Mexique","Canada","Australie","Nouvelle-Zélande","Afrique du Sud","Kenya","Maroc","Tunisie","Algérie","Nigeria",
+"France2","Allemagne2","Italie2","Espagne2","Portugal2","Norvège2","Suède2","Finlande2","Danemark2","Islande2",
+"Japon2","Chine2","Inde2","Brésil2","Argentine2","Mexique2","Canada2","Australie2","Nouvelle-Zélande2","Afrique du Sud2"];
+
+// Dirigeant réel
+let leaderType = {
+  c1:"president", c2:"king", c3:"president", c4:"president",
+  c5:"president", c6:"president", c7:"president", c8:"president", c9:"president", c10:"president"
 };
 
-let state = {};
+// Création des pays
+countryNames.forEach((name,i)=>{
+ let id="c"+i;
+ countryData[id]={name:name};
+ unlocked[id]=false;
+ population[id]=0;
+ persons[id]=0;
+ special[id]={pharaoh:0,cat:0,god:0,ethanael:0,enael:0,nathan:0,nohlan:0};
+ leaders[id]=0;
+ prices[id]={person:0,pharaoh:0,cat:0,god:0,ethanael:0,enael:0,nathan:0,nohlan:0,president:0,king:0};
+});
 
-function rand(min,max){
-  return Math.floor(Math.random()*(max-min+1))+min;
+// Prix aléatoire
+function r(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function newPrices(){
+ Object.keys(countryData).forEach(id=>{
+   prices[id].person=r(10,75);
+   prices[id].pharaoh=r(1000,10000);
+   prices[id].cat=r(10000,100000);
+   prices[id].god=r(100000,1000000);
+   prices[id].ethanael=r(1000000,10000000);
+   prices[id].enael=r(1000000,10000000);
+   prices[id].nathan=r(1000000,10000000);
+   prices[id].nohlan=r(1000000,10000000);
+   if(id!="c0" && leaderType[id]) prices[id][leaderType[id]] = r(1000,10000);
+ });
 }
 
-/* ===== INITIALISATION ===== */
-for(let c in countriesData){
-  state[c]={
-    unlocked:false,
-    people:0,
-    population:0,
-    leader:0,
-    cats:0,
-    gods:0,
-    prices:{
-      people:rand(10,75),
-      leader:rand(1000,10000),
-      cat:rand(10000,100000),
-      god:rand(100000,1000000),
-      special:rand(100000,1000000)
-    }
+// Menu départ
+let startHTML="";
+Object.keys(countryData).forEach(id=>{
+ startHTML+=`<button onclick="start('${id}')">${countryData[id].name}</button>`;
+});
+document.getElementById("startButtons").innerHTML=startHTML;
+
+// Ouvrir / fermer interface
+function toggle(id){
+  if(!unlocked[id]){
+    alert("Vous devez d'abord acheter ce pays !");
+    return;
   }
+  document.getElementById(id).classList.toggle("hidden");
 }
 
-/* ===== MENUS ===== */
-function confirmPseudo(){
-  pseudo=document.getElementById("pseudo").value.trim();
-  if(pseudo) alert("Pseudo confirmé");
+// Début avec pays choisi
+function start(id){
+ document.getElementById("startMenu").remove();
+ searchCountry();
+ unlock(id,true);
 }
 
-function start(){
-  if(!pseudo){alert("Entre un pseudo");return;}
-  document.getElementById("menu").classList.add("hidden");
-  document.getElementById("countrySelect").classList.remove("hidden");
-  renderCountrySelect();
+// Débloquer un pays
+function unlock(id,free){
+ unlocked[id]=true;
+ let box=document.getElementById(id+"BoxSearch");
+ if(box) box.classList.remove("locked");
+ let btn=box.querySelector(".buyCountry");
+ if(btn) btn.remove();
 }
 
-function renderCountrySelect(){
-  const list=document.getElementById("countryList");
-  list.innerHTML="";
-  for(let c in countriesData){
-    const b=document.createElement("button");
-    b.textContent=c;
-    b.onclick=()=>chooseCountry(c);
-    list.appendChild(b);
-  }
+// Achat pays
+function buyCountry(id){
+ let box=document.getElementById(id+"BoxSearch");
+ let btn=box.querySelector(".buyCountry");
+ if(!btn) return;
+ let price=parseInt(btn.textContent.match(/\d+/)[0]);
+ if(money<price){alert("Pas assez d'argent !");return;}
+ money-=price;
+ unlock(id,false);
+ Object.keys(countryData).forEach(cid=>{
+   if(cid!=id){
+     let b=document.getElementById(cid+"BoxSearch")?.querySelector(".buyCountry");
+     if(b)b.textContent=`Acheter le pays (${Math.floor(parseInt(b.textContent.match(/\d+/)[0]*1.15))})`;
+   }
+ });
+ update();
 }
 
-function chooseCountry(c){
-  state[c].unlocked=true;
-  document.getElementById("countrySelect").classList.add("hidden");
-  document.getElementById("game").classList.remove("hidden");
-  document.getElementById("playerName").textContent=pseudo;
-  render();
-}
-
-/* ===== VILLES ===== */
-function city(pop){
-  if(pop==0) return {emoji:"",gain:0};
-  if(pop<=10) return {emoji:"🛖",gain:1};
-  if(pop<=25) return {emoji:"🏠",gain:2};
-  if(pop<=49) return {emoji:"🏙️",gain:3};
-  return {emoji:"🌆",gain:4};
-}
-
-/* ===== RENDER ===== */
-function render(){
-  document.getElementById("money").textContent=format(money);
-  let mps=0;
-  const cont=document.getElementById("countries");
-  cont.innerHTML="";
-  for(let c in state){
-    const s=state[c];
-    const cd=countriesData[c];
-    const ct=city(s.population);
-    mps+=ct.gain + s.leader*1 + s.gods*5 + (cd.special&&s.special?10:0);
-
-    const d=document.createElement("div");
-    d.className="country "+(s.unlocked?"":"locked");
-    d.innerHTML=`
-      <h3>${c}</h3>
-      ${s.unlocked?`
-      Population: ${s.population} ${ct.emoji}<br>
-      <button onclick="buyPerson('${c}')">+ Personne (${s.prices.people})</button>
-      <button onclick="sellPerson('${c}')">- Personne (${s.prices.people})</button><br>
-      Dirigeant: ${s.leader}/1
-      <button onclick="buyLeader('${c}')">Acheter (${s.prices.leader})</button>
-      <button onclick="sellLeader('${c}')">Vendre</button><br>
-      ${c=="Egypte"?`
-      Chats: ${s.cats}/2
-      <button onclick="buyCat()">Acheter (${s.prices.cat})</button>
-      <button onclick="sellCat()">Vendre</button><br>
-      Dieux: ${s.gods}
-      <button onclick="buyGod()">Acheter (${s.prices.god})</button>
-      <button onclick="sellGod()">Vendre</button>
-      `:""}
-      `:`<button onclick="buyCountry('${c}')">Acheter pays (1000)</button>`}
-    `;
-    cont.appendChild(d);
-  }
-  document.getElementById("moneyps").textContent=mps;
-}
-
-function format(n){
-  if(n>=1e9) return (n/1e9).toFixed(1)+"B";
-  if(n>=1e6) return (n/1e6).toFixed(1)+"M";
-  if(n>=1e3) return (n/1e3).toFixed(1)+"K";
-  return n;
-}
-
-/* ===== ACHATS ===== */
+// Achat / Vente personnes
 function buyPerson(c){
-  const s=state[c];
-  if(money<s.prices.people)return;
-  money-=s.prices.people;
-  s.people++; s.population++;
-  render();
+ if(money>=prices[c].person){money-=prices[c].person;persons[c]++;}else{alert("Pas assez d'argent !");}
+ update();
 }
 function sellPerson(c){
-  const s=state[c];
-  if(s.people<=0)return;
-  s.people--; s.population--;
-  money+=s.prices.people;
-  render();
+ if(persons[c]>0){money+=prices[c].person;persons[c]--;}else{alert("Aucune personne !");}
+ update();
 }
+
+// Achat / Vente spéciaux (Égypte)
+function buySpecial(c,type){
+ let max=1; if(type=="cat") max=2;
+ if(type=="god" && special[c]["cat"]==0){alert("Veuillez d'abord acheter un chat !"); return;}
+ if(special[c][type]>=max){alert("Max atteint pour "+type); return;}
+ if(money>=prices[c][type]){money-=prices[c][type]; special[c][type]++;}else{alert("Pas assez d'argent !");}
+ update();
+}
+function sellSpecial(c,type){
+ if(special[c][type]>0){
+   money+=prices[c][type];
+   special[c][type]--;
+   if(type=="cat" && special[c]["god"]>0){special[c]["god"]=0; alert("Le dieu lié au chat vendu !");}
+ }
+ update();
+}
+
+// Achat / Vente dirigeants
 function buyLeader(c){
-  const s=state[c];
-  if(s.leader>=1||money<s.prices.leader)return;
-  money-=s.prices.leader; s.leader=1; render();
+ let type = leaderType[c];
+ if(!type) return;
+ if(leaders[c]>=1){alert("Vous avez déjà un "+type+" !"); return;}
+ if(money>=prices[c][type]){money-=prices[c][type]; leaders[c]=1;}else{alert("Pas assez d'argent !");}
+ update();
 }
 function sellLeader(c){
-  const s=state[c];
-  if(s.leader<=0)return;
-  s.leader=0; money+=s.prices.leader; render();
-}
-function buyCountry(c){
-  if(money<1000)return;
-  money-=1000;
-  state[c].unlocked=true;
-  render();
+ let type = leaderType[c];
+ if(!type) return;
+ if(leaders[c]>0){money+=prices[c][type]; leaders[c]=0;}
+ update();
 }
 
-/* Égypte */
-function buyCat(){
-  const s=state["Egypte"];
-  if(s.cats>=2||money<s.prices.cat)return;
-  money-=s.prices.cat; s.cats++; render();
-}
-function sellCat(){
-  const s=state["Egypte"];
-  if(s.cats<=0)return;
-  if(s.gods>0)s.gods--;
-  s.cats--; money+=s.prices.cat; render();
-}
-function buyGod(){
-  const s=state["Egypte"];
-  if(s.cats<=s.gods||money<s.prices.god)return;
-  money-=s.prices.god; s.gods++; render();
-}
-function sellGod(){
-  const s=state["Egypte"];
-  if(s.gods<=0)return;
-  s.gods--; money+=s.prices.god; render();
+// Affichage / mise à jour
+function update(){
+ document.getElementById("money").textContent=money;
+ document.getElementById("timer").textContent=timer;
+ let total = 0;
+
+ Object.keys(countryData).forEach(id=>{
+   let pop = population[id] + persons[id];
+   let cityType="", cityEmoji="", cityPS=0;
+   if(pop>=1 && pop<=10){ cityType="Village"; cityEmoji="🏡"; cityPS=1; }
+   else if(pop>=11 && pop<=25){ cityType="Petite Ville"; cityEmoji="🏘️"; cityPS=2; }
+   else if(pop>=26 && pop<=49){ cityType="Ville"; cityEmoji="🏙️"; cityPS=3; }
+   else if(pop>=50){ cityType="Métropole"; cityEmoji="🌆"; cityPS=4; }
+   if(pop>=100) cityPS = 5;
+   if(pop>=250) cityPS = 6 + Math.floor((pop-250)/250);
+
+   let inc = cityPS + leaders[id] + special[id].pharaoh + special[id].ethanael*10 + special[id].enael*10 + special[id].nathan*10 + special[id].nohlan*10 + special[id].god*5;
+   total += inc;
+
+   let panel=document.getElementById(id);
+   if(panel){
+     document.getElementById("pop"+id).textContent = `${cityEmoji} ${pop} (${cityType})`;
+     document.getElementById("ps"+id).textContent = inc;
+     document.getElementById("pPrice"+id).textContent = prices[id].person;
+     // Dirigeants
+     let leaderHTML="";
+     let type=leaderType[id];
+     if(type) leaderHTML=`<button onclick="buyLeader('${id}')">Acheter ${type} (${prices[id][type]})</button>
+     <button onclick="sellLeader('${id}')">Vendre ${type}</button>`;
+     document.getElementById("leader"+id).innerHTML = leaderHTML;
+     // Spéciaux
+     let spHTML="";
+     if(id=="c0"){
+       spHTML+=`<br>Pharaon: ${special[id].pharaoh}/1 <button onclick="buySpecial('${id}','pharaoh')">Acheter (${prices[id].pharaoh})</button>`;
+       spHTML+=`<br>Chats: ${special[id].cat}/2 <button onclick="buySpecial('${id}','cat')">Acheter (${prices[id].cat})</button>`;
+       spHTML+=`<br>Dieux: ${special[id].god}/2 <button onclick="buySpecial('${id}','god')">Acheter (${prices[id].god})</button>`;
+     }
+     if(id=="c1") spHTML+=`<br>Ethanael: ${special[id].ethanael}/1 <button onclick="buySpecial('${id}','ethanael')">Acheter (${prices[id].ethanael})</button>`;
+     if(id=="c2") spHTML+=`<br>Enaël: ${special[id].enael}/1 <button onclick="buySpecial('${id}','enael')">Acheter (${prices[id].enael})</button>`;
+     if(id=="c3") spHTML+=`<br>Nathan: ${special[id].nathan}/1 <button onclick="buySpecial('${id}','nathan')">Acheter (${prices[id].nathan})</button>`;
+     if(id=="c4") spHTML+=`<br>Nohlan: ${special[id].nohlan}/1 <button onclick="buySpecial('${id}','nohlan')">Acheter (${prices[id].nohlan})</button>`;
+     document.getElementById("special"+id).innerHTML = spHTML;
+   }
+ });
+ document.getElementById("totalPS").textContent = total;
 }
 
-/* ===== TIMER ===== */
+// Affichage initial
+newPrices();
+update();
+
+// Chrono prix
 setInterval(()=>{
-  timer--;
-  if(timer<=0){
-    timer=30;
-    for(let c in state){
-      const p=state[c].prices;
-      p.people=rand(10,75);
-      p.leader=rand(1000,10000);
-      p.cat=rand(10000,100000);
-      p.god=rand(100000,1000000);
+ timer--; 
+ if(timer<=0){timer=30; newPrices();}
+ update();
+},1000);
+
+// Gain par seconde
+setInterval(()=>{
+ Object.keys(countryData).forEach(id=>{
+   let pop = population[id] + persons[id];
+   let cityPS=0;
+   if(pop>=1 && pop<=10) cityPS=1;
+   else if(pop>=11 && pop<=25) cityPS=2;
+   else if(pop>=26 && pop<=49) cityPS=3;
+   else if(pop>=50) cityPS=4;
+   if(pop>=100) cityPS = 5;
+   if(pop>=250) cityPS = 6 + Math.floor((pop-250)/250);
+
+   money += cityPS + leaders[id] + special[id].pharaoh + special[id].ethanael*10 + special[id].enael*10 + special[id].nathan*10 + special[id].nohlan*10 + special[id].god*5;
+ });
+ update();
+},1000);
+
+// Barre de recherche
+function searchCountry() {
+  let input = document.getElementById("searchInput").value.toLowerCase();
+  let countriesDiv = document.getElementById("countriesList");
+  countriesDiv.innerHTML = "";
+  Object.keys(countryData).forEach(id => {
+    let name = countryData[id].name.toLowerCase();
+    if(name.includes(input)){
+      let unlockedClass = unlocked[id] ? "" : "locked";
+      countriesDiv.innerHTML += `
+      <div class="countryBox ${unlockedClass}" id="${id}BoxSearch">
+        <h2>${countryData[id].name}</h2>
+        ${!unlocked[id] ? `<button class="buyCountry" onclick="buyCountry('${id}')">Acheter le pays (1000)</button>` : ""}
+        <button onclick="toggle('${id}')">Ouvrir / Fermer</button>
+        <div id="${id}" class="panel hidden">
+          Population : <span id="pop${id}">0</span><br>
+          💰 Argent/sec : <span id="ps${id}">0</span><br>
+          <button onclick="buyPerson('${id}')">+ Personne (<span id="pPrice${id}">0</span>)</button>
+          <button onclick="sellPerson('${id}')">- Personne</button>
+          <div id="leader${id}"></div>
+          <div id="special${id}"></div>
+        </div>
+      </div>`;
     }
-  }
-  document.getElementById("timer").textContent=timer;
-},1000);
-
-/* ===== ARGENT / SEC ===== */
-setInterval(()=>{
-  let gain=0;
-  for(let c in state){
-    const s=state[c];
-    if(!s.unlocked)continue;
-    const ct=city(s.population);
-    gain+=ct.gain + s.leader + s.gods*5;
-  }
-  money+=gain;
-  render();
-},1000);
-
-/* ===== SAUVEGARDE ===== */
-setInterval(()=>{
-  localStorage.setItem("lordSave",JSON.stringify({money,pseudo,state}));
-},5000);
+  });
+}
 </script>
 </body>
 </html>
